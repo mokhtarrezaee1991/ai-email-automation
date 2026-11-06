@@ -215,5 +215,24 @@ def update_reply_status(reply_id: int, new_status: str) -> bool:
         return cursor.rowcount > 0
 
 
+def get_email_by_id(email_id: int):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT *
+            FROM emails
+            WHERE id = ?
+        """, (email_id,))
+
+        row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return dict(row)
+
+
 if __name__ == "__main__":
     create_database()
