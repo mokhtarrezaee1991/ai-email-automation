@@ -18,6 +18,7 @@ from app.email_analyzer import analyze_email
 from app.email_generator import generate_email_reply
 from app.database import save_reply
 from app.database import update_reply_status
+from app.database import get_replies
 
 
 # FastAPI-Anwendung erstellen
@@ -58,15 +59,21 @@ def home():
 
 
 # Gespeicherte E-Mails abrufen
-
 @app.get("/emails")
-def read_emails(priority: str | None = None):
-    emails = get_emails(priority=priority)
+def read_emails(
+    priority: str | None = None,
+    category: str | None = None
+):
+    emails = get_emails(
+        priority=priority,
+        category=category
+    )
 
     return {
         "total": len(emails),
         "emails": emails
     }
+
 
 
 @app.get("/emails/{email_id}")
@@ -200,4 +207,14 @@ def approve_or_reject_reply(
         "message": "Reply status updated successfully",
         "reply_id": reply_id,
         "approval_status": status
+    }
+
+
+@app.get("/replies")
+def read_replies():
+    replies = get_replies()
+
+    return {
+        "total": len(replies),
+        "replies": replies
     }

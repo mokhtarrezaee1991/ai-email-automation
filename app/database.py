@@ -70,9 +70,6 @@ def create_database():
     print(f"Database created successfully: {DB_PATH}")
 
 
-
-
-
 def save_email(
     email_text: str,
     category: str,
@@ -82,6 +79,11 @@ def save_email(
     department: str,
     customer_name: str | None = None
 ) -> int:
+    """Speichert eine analysierte E-Mail in der SQLite-Datenbank."""
+
+    # Kundennamen bereinigen
+    # Entfernt Leerzeichen und Zeilenumbrüche am Anfang und Ende
+    customer_name = customer_name.strip() if customer_name else None
 
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
@@ -113,28 +115,51 @@ def save_email(
 
 
 
-def get_emails(priority=None):
+
+
+
+def get_emails(priority=None, category=None):
+    """Liest gespeicherte E-Mails mit optionalen Filtern."""
+
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
+        # SQL-Abfrage vorbereiten
+        query = """
+            SELECT
+                id,
+                customer_name,
+                category,
+                urgency,
+                priority,
+                department,
+                status,
+                created_at
+            FROM emails
+            WHERE 1=1
+        """
+
+        parameters = []
+
+        # Optionaler Prioritätsfilter
         if priority:
-            cursor.execute("""
-                SELECT id, category, urgency, priority,
-                       department, status, created_at
-                FROM emails
-                WHERE priority = ?
-                ORDER BY created_at DESC, id DESC
-            """, (priority,))
-        else:
-            cursor.execute("""
-                SELECT id, category, urgency, priority,
-                       department, status, created_at
-                FROM emails
-                ORDER BY created_at DESC, id DESC
-            """)
+            query += " AND priority = ?"
+            parameters.append(priority)
+
+        # Optionaler Kategoriefilter
+        if category:
+            query += " AND category = ?"
+            parameters.append(category)
+
+        # Neueste E-Mails zuerst anzeigen
+        query += " ORDER BY created_at DESC, id DESC"
+
+        cursor.execute(query, parameters)
 
         return [dict(row) for row in cursor.fetchall()]
+
+
 
 
 def update_email_status(email_id: int, new_status: str) -> bool:
