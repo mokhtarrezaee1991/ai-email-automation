@@ -9,10 +9,12 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
+
 def generate_email_reply(
     email_text: str,
     category: str,
-    summary: str
+    summary: str,
+    customer_name: str | None = None
 ) -> str:
 
     response = client.responses.create(
@@ -23,6 +25,13 @@ def generate_email_reply(
         Erstelle einen höflichen Antwortentwurf auf Deutsch.
 
         Regeln:
+        - Verwende den Kundennamen für eine persönliche Anrede,
+          wenn ein Name vorhanden ist.
+        - Falls kein Name vorhanden ist, verwende
+          "Guten Tag," als neutrale Anrede.
+        - Verwende eine passende Anrede wie
+          "Sehr geehrter Herr Müller" oder
+          "Sehr geehrte Frau Schmidt".
         - Bedanke dich für die Nachricht.
         - Gehe konkret auf das Anliegen ein.
         - Schreibe klar und freundlich.
@@ -36,6 +45,8 @@ def generate_email_reply(
         Erstelle ausschließlich einen Antwortentwurf.
         """,
         input=f"""
+        Kundenname: {customer_name or "Nicht angegeben"}
+
         Kunden-E-Mail:
         {email_text}
 

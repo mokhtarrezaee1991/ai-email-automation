@@ -23,6 +23,7 @@ def create_database():
             CREATE TABLE IF NOT EXISTS emails (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 email_text TEXT NOT NULL,
+                customer_name TEXT,
                 category TEXT NOT NULL,
                 urgency TEXT NOT NULL,
                 summary TEXT NOT NULL,
@@ -54,10 +55,20 @@ def create_database():
                     REFERENCES emails(id)
             )
         """)
+                # Bestehende Datenbank um den Kundennamen erweitern
+        cursor.execute("PRAGMA table_info(emails)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        if "customer_name" not in columns:
+            cursor.execute("""
+                ALTER TABLE emails
+                ADD COLUMN customer_name TEXT
+            """)
 
         conn.commit()
 
     print(f"Database created successfully: {DB_PATH}")
+
 
 
 
@@ -68,7 +79,8 @@ def save_email(
     urgency: str,
     summary: str,
     priority: str,
-    department: str
+    department: str,
+    customer_name: str | None = None
 ) -> int:
 
     with sqlite3.connect(DB_PATH) as conn:
@@ -77,15 +89,17 @@ def save_email(
         cursor.execute("""
             INSERT INTO emails (
                 email_text,
+                customer_name,
                 category,
                 urgency,
                 summary,
                 priority,
                 department
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             email_text,
+            customer_name,
             category,
             urgency,
             summary,
@@ -96,6 +110,7 @@ def save_email(
         conn.commit()
 
         return cursor.lastrowid
+
 
 
 def get_emails(priority=None):

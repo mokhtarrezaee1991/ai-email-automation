@@ -42,9 +42,11 @@ class EmailCreate(BaseModel):
     ]
     urgency: Literal["Niedrig", "Mittel", "Hoch"]
     summary: str
+    customer_name: str | None = None
 
 class EmailAnalyzeRequest(BaseModel):
     email_text: str
+    customer_name: str | None = None
 
 
 # Startseite
@@ -94,7 +96,8 @@ def create_email(email: EmailCreate):
         urgency=email.urgency,
         summary=email.summary,
         priority=priority,
-        department=department
+        department=department,
+        customer_name=email.customer_name
     )
 
     return {
@@ -124,7 +127,8 @@ def analyze_and_save_email(request: EmailAnalyzeRequest):
         urgency=analysis.urgency,
         summary=analysis.summary,
         priority=priority,
-        department=department
+        department=department,
+        customer_name=request.customer_name
     )
 
     # 4. Ergebnis zurückgeben
@@ -154,9 +158,10 @@ def generate_reply(email_id: int):
 
     # 2. KI-Antwortentwurf erstellen
     reply_text = generate_email_reply(
-        email_text=email["email_text"],
-        category=email["category"],
-        summary=email["summary"]
+    email_text=email["email_text"],
+    category=email["category"],
+    summary=email["summary"],
+    customer_name=email.get("customer_name")
     )
 
     # 3. Antwortentwurf in SQLite speichern
