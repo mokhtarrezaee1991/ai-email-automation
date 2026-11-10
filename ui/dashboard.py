@@ -20,22 +20,70 @@ API_URL = "http://127.0.0.1:8000"
 # 2. API-Funktionen
 # ---------------------------------------
 
-def update_approval_status(reply_id, status):
-    """Aktualisiert den Freigabestatus einer KI-Antwort."""
+def update_reply_text(reply_id: int, new_text: str) -> bool:
+    """Speichert eine bearbeitete KI-Antwort über FastAPI."""
 
     try:
         response = requests.patch(
-            f"{API_URL}/replies/{reply_id}/approval",
-            params={"status": status},
-            timeout=5
+            f"{API_URL}/replies/{reply_id}",
+            json={"reply_text": new_text},
+            timeout=10
         )
 
         response.raise_for_status()
+
         return True
 
     except requests.exceptions.RequestException as error:
-        st.error(f"Status konnte nicht geändert werden: {error}")
+        st.error(
+            f"Antwort konnte nicht gespeichert werden: {error}"
+        )
         return False
+def update_approval_status(reply_id, status):
+    """Sendet eine Freigabeentscheidung an n8n und prüft das Ergebnis."""
+
+    webhook_url = "http://localhost:5678/webhook/email-approval"
+
+    payload = {
+        "reply_id": reply_id,
+        "status": status
+    }
+
+    try:
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            timeout=15
+        )
+
+        # Prüfen, ob n8n einen HTTP-Fehler zurückgegeben hat
+        response.raise_for_status()
+
+        # JSON-Antwort von n8n lesen
+        result = response.json()
+
+        # Prüfen, ob FastAPI die Änderung bestätigt hat
+        if (
+            result.get("reply_id") == reply_id
+            and result.get("approval_status") == status
+            and result.get("message") == "Reply status updated successfully"
+        ):
+            return True
+
+        st.error(
+            "Die Statusänderung wurde nicht von FastAPI bestätigt."
+        )
+        return False
+
+    except requests.exceptions.RequestException as error:
+        st.error(f"Fehler bei der Verbindung zu n8n: {error}")
+        return False
+
+    except ValueError:
+        st.error("n8n hat keine gültige JSON-Antwort zurückgegeben.")
+        return False
+
+
 
 
 def get_email_details(email_id):
@@ -290,7 +338,33 @@ try:
 
                 st.markdown("### KI-generierte Antwort")
 
-                st.text(reply_text)
+                # Antwort in einem bearbeitbaren Textfeld anzeigen
+                edited_reply = st.text_area(
+                    "Antwort bearbeiten",
+                    value=reply_text,
+                    height=220,
+                    key=f"reply_editor_{reply_id}"
+                )
+
+                # Prüfen, ob der Text verändert wurde
+                text_changed = edited_reply != reply_text
+
+                # Änderungen speichern
+                if st.button(
+                    "Änderungen speichern",
+                    key=f"save_reply_{reply_id}",
+                    disabled=not text_changed
+                ):
+
+                    if not edited_reply.strip():
+                        st.warning("Die Antwort darf nicht leer sein.")
+
+                    elif update_reply_text(
+                        reply_id,
+                        edited_reply.strip()
+                    ):
+                        st.success("Antwort erfolgreich gespeichert!")
+                        st.rerun()
 
                 st.write(
                     f"**Freigabestatus:** {approval_status}"
@@ -306,11 +380,13 @@ try:
 
                 with col1:
 
+                   
                     if st.button(
                         "Freigeben",
                         key=f"approve_{reply_id}",
-                        type="primary"
-                    ):
+                        type="primary",
+                        disabled=text_changed
+                    ):    
 
                         if update_approval_status(
                             reply_id,
@@ -322,7 +398,8 @@ try:
 
                     if st.button(
                         "Ablehnen",
-                        key=f"reject_{reply_id}"
+                        key=f"reject_{reply_id}",
+                        disabled=text_changed
                     ):
 
                         if update_approval_status(

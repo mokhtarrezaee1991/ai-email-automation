@@ -233,6 +233,26 @@ def get_replies(email_id=None):
 
         return [dict(row) for row in cursor.fetchall()]
 
+def get_reply_by_id(reply_id: int):
+    """Liest einen einzelnen Antwortentwurf anhand seiner ID."""
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT *
+            FROM email_replies
+            WHERE id = ?
+        """, (reply_id,))
+
+        row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return dict(row)
 
 def update_reply_status(reply_id: int, new_status: str) -> bool:
     allowed_statuses = ["Approved", "Rejected"]
@@ -272,6 +292,33 @@ def get_email_by_id(email_id: int):
             return None
 
         return dict(row)
+
+
+def update_reply_text(reply_id: int, new_text: str) -> bool:
+    """Bearbeitet eine KI-Antwort, solange sie nicht freigegeben ist."""
+
+    # 1. Prüfen, ob der neue Text gültig ist
+    new_text = new_text.strip()
+
+    if not new_text:
+        raise ValueError("Der Antworttext darf nicht leer sein.")
+
+    # 2. Verbindung zur SQLite-Datenbank herstellen
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        # 3. Antworttext nur bei offenen Freigaben ändern
+        cursor.execute("""
+            UPDATE email_replies
+            SET reply_text = ?
+            WHERE id = ?
+              AND approval_status = 'Pending Approval'
+        """, (new_text, reply_id))
+
+        conn.commit()
+
+        # 4. True zurückgeben, wenn eine Antwort geändert wurde
+        return cursor.rowcount > 0
 
 
 if __name__ == "__main__":

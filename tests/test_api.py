@@ -142,7 +142,12 @@ def test_generate_reply_with_mock(client, monkeypatch):
         "Mit freundlichen Grüßen, Ihr Kundenservice-Team"
     )
 
-    def fake_generate_reply(email_text, category, summary):
+    def fake_generate_reply(
+        email_text,
+        category,
+        summary,
+        customer_name=None
+    ):
         return fake_reply
 
     monkeypatch.setattr(
@@ -170,3 +175,108 @@ def test_generate_reply_with_mock(client, monkeypatch):
     assert len(replies) == 1
     assert replies[0]["reply_text"] == fake_reply
     assert replies[0]["approval_status"] == "Pending Approval"
+
+def test_update_reply_text(client):
+
+    # 1. Test-E-Mail erstellen
+    email_id = database.save_email(
+        email_text="Meine Rechnung ist falsch.",
+        category="Rechnung",
+        urgency="Mittel",
+        summary="Kunde meldet eine falsche Rechnung.",
+        priority="P2",
+        department="Buchhaltung",
+        customer_name="Max Müller"
+    )
+
+    # 2. Ursprünglichen Antwortentwurf speichern
+    reply_id = database.save_reply(
+        email_id=email_id,
+        reply_text="Wir prüfen Ihre Anfrage."
+    )
+
+    # 3. Antwort über FastAPI bearbeiten
+    new_text = "Sehr geehrter Herr Müller, wir prüfen Ihre Rechnung."
+
+    response = client.patch(
+        f"/replies/{reply_id}",
+        json={"reply_text": new_text}
+    )
+
+    # 4. HTTP-Ergebnis überprüfen
+    assert response.status_code == 200
+
+    # 5. Gespeicherten Text in SQLite überprüfen
+    replies = database.get_replies(email_id=email_id)
+
+    assert len(replies) == 1
+    assert replies[0]["reply_text"] == new_text
+
+    # 6. Freigabestatus muss unverändert bleiben
+    assert replies[0]["approval_status"] == "Pending Approval"
+
+import pytest
+
+@pytest.mark.parametrize("status", ["Approved", "Rejected"])
+def test_cannot_edit_processed_reply(client, status):
+
+    # 1. Test-E-Mail erstellen
+    email_id = database.save_email(
+        email_text="Meine Rechnung ist falsch.",
+        category="Rechnung",
+        urgency="Mittel",
+        summary="Kunde meldet eine falsche Rechnung.",
+        priority="P2",
+        department="Buchhaltung",
+        customer_name="Max Müller"
+    )
+
+    # 2. Antwortentwurf speichern
+    original_text = "Wir prüfen Ihre Anfrage."
+
+    reply_id = database.save_reply(
+        email_id=email_id,
+        reply_text=original_text
+    )
+
+    # 3. Antwort freigeben oder ablehnen
+    database.update_reply_status(
+        reply_id=reply_id,
+        new_status=status
+    )
+
+    # 4. Versuchen, die Antwort nachträglich zu ändern
+    response = client.patch(
+        f"/replies/{reply_id}",
+        json={
+            "reply_text": "Dieser Text darf nicht gespeichert werden."
+        }
+    )
+
+    # 5. API muss die Änderung ablehnen
+    assert response.status_code == 409
+
+    # 6. Ursprünglicher Text muss erhalten bleiben
+    replies = database.get_replies(email_id=email_id)
+
+    assert replies[0]["reply_text"] == original_text
+    assert replies[0]["approval_status"] == status    
+
+
+def test_update_nonexistent_reply(client):
+
+    # Eine nicht vorhandene Antwort-ID verwenden
+    reply_id = 999999
+
+    # Versuchen, die Antwort zu bearbeiten
+    response = client.patch(
+        f"/replies/{reply_id}",
+        json={
+            "reply_text": "Neuer Antworttext"
+        }
+    )
+
+    # Die API muss den Fehler korrekt behandeln
+    assert response.status_code == 404
+
+    assert response.json()["detail"] == "Reply not found" 

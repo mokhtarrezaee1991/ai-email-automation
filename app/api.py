@@ -18,7 +18,9 @@ from app.email_analyzer import analyze_email
 from app.email_generator import generate_email_reply
 from app.database import save_reply
 from app.database import update_reply_status
+from app.database import update_reply_text
 from app.database import get_replies
+from app.database import get_reply_by_id
 
 
 # FastAPI-Anwendung erstellen
@@ -49,6 +51,11 @@ class EmailAnalyzeRequest(BaseModel):
     email_text: str
     customer_name: str | None = None
 
+class ReplyUpdate(BaseModel):
+    reply_text: str    
+
+class ReplyUpdateRequest(BaseModel):
+    reply_text: str
 
 # Startseite
 @app.get("/")
@@ -207,6 +214,45 @@ def approve_or_reject_reply(
         "message": "Reply status updated successfully",
         "reply_id": reply_id,
         "approval_status": status
+    }
+
+
+# KI-generierten Antworttext bearbeiten
+@app.patch("/replies/{reply_id}")
+def edit_reply(reply_id: int, request: ReplyUpdate):
+
+    # 1. Prüfen, ob die Antwort existiert
+    reply = get_reply_by_id(reply_id)
+
+    if reply is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Reply not found"
+        )
+
+    # 2. Prüfen, ob die Antwort noch bearbeitet werden darf
+    if reply["approval_status"] != "Pending Approval":
+        raise HTTPException(
+            status_code=409,
+            detail="Reply already processed"
+        )
+
+    # 3. Antworttext aktualisieren
+    success = update_reply_text(
+        reply_id=reply_id,
+        new_text=request.reply_text
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=409,
+            detail="Reply could not be updated"
+        )
+
+    return {
+        "message": "Reply updated successfully",
+        "reply_id": reply_id,
+        "reply_text": request.reply_text
     }
 
 
