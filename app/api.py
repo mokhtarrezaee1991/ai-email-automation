@@ -147,8 +147,16 @@ def create_email(email: EmailCreate):
 @app.post("/emails/analyze", status_code=201)
 def analyze_and_save_email(request: EmailAnalyzeRequest):
 
+  
     # 1. E-Mail mit KI analysieren
-    analysis = analyze_email(request.email_text)
+    try:
+        analysis = analyze_email(request.email_text)
+
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=503,
+            detail=str(error)
+        ) from error
 
     # 2. Business Rules anwenden
     priority = assign_priority(analysis.urgency)

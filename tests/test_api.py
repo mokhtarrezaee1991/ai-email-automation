@@ -294,3 +294,35 @@ def test_cannot_save_empty_reply(client):
 
     # FastAPI muss die Eingabe ablehnen
     assert response.status_code == 422
+
+def test_analyze_email_api_unavailable(client, monkeypatch):
+    """Prüft HTTP 503 bei einem OpenAI-Ausfall."""
+
+    # 1. OpenAI-Ausfall simulieren
+    def fake_analyze_email(email_text):
+        raise RuntimeError(
+            "OpenAI hat nicht rechtzeitig geantwortet."
+        )
+
+    # 2. Echte KI-Funktion durch Mock ersetzen
+    monkeypatch.setattr(
+        "app.api.analyze_email",
+        fake_analyze_email
+    )
+
+    # 3. Anfrage an FastAPI senden
+    response = client.post(
+        "/emails/analyze",
+        json={
+            "email_text": "Guten Tag, meine Bestellung ist nicht angekommen.",
+            "customer_name": "Max Müller"
+        }
+    )
+
+    # 4. HTTP-Status prüfen
+    assert response.status_code == 503
+
+    # 5. Fehlermeldung prüfen
+    assert response.json() == {
+        "detail": "OpenAI hat nicht rechtzeitig geantwortet."
+    }    
