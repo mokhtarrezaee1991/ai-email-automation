@@ -280,3 +280,17 @@ def test_update_nonexistent_reply(client):
     assert response.status_code == 404
 
     assert response.json()["detail"] == "Reply not found" 
+
+def test_cannot_save_empty_reply(client):
+    """Prüft, ob leere Antworttexte abgelehnt werden."""
+
+    # Eine Antwort nur mit Leerzeichen simulieren
+    response = client.patch(
+        "/replies/9",
+        json={
+            "reply_text": "   "
+        }
+    )
+
+    # FastAPI muss die Eingabe ablehnen
+    assert response.status_code == 422

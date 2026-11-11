@@ -9,7 +9,7 @@ from app.database import (
     get_email_by_id
 )
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 from app.database import save_email
 from app.rules import assign_priority, assign_department
@@ -51,8 +51,28 @@ class EmailAnalyzeRequest(BaseModel):
     email_text: str
     customer_name: str | None = None
 
+
 class ReplyUpdate(BaseModel):
-    reply_text: str    
+
+    reply_text: str = Field(
+        min_length=1,
+        max_length=5000
+    )
+
+    @field_validator("reply_text")
+    @classmethod
+    def validate_reply_text(cls, value: str) -> str:
+
+        # Leerzeichen am Anfang und Ende entfernen
+        value = value.strip()
+
+        # Leere Antworten verhindern
+        if not value:
+            raise ValueError(
+                "Der Antworttext darf nicht leer sein."
+            )
+
+        return value    
 
 class ReplyUpdateRequest(BaseModel):
     reply_text: str
