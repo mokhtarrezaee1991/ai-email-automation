@@ -1,0 +1,147 @@
+{
+  "name": "AI Email Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "customer-email",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2e4b2473-d49d-4ffe-a94b-37ed97a434d3",
+      "name": "Webhook",
+      "webhookId": "dfe8645a-0b35-4b67-8b57-d5d9cfd2a580"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://host.docker.internal:8000/emails/' + $json.email_id + '/generate-reply' }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "5f8f9818-111a-44bc-98cb-de3c2dd4b82f",
+      "name": "Generate AI Reply"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/emails/analyze",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "email_text",
+              "value": "={{ $json.snippet }}"
+            },
+            {
+              "name": "customer_name",
+              "value": "={{ $json.From }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        208,
+        -112
+      ],
+      "id": "8a47eb26-590c-4538-9103-03e9f4f9488d",
+      "name": "Analyze Email"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "maxResults": 1,
+        "filters": {
+          "q": "subject:\"AI-TEST\""
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -272,
+        0
+      ],
+      "id": "8b0651cf-7dd5-4dc0-9c65-09760fc48627",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "WKW721i9qlQm9PQw",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Analyze Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Email": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Reply": {
+      "main": [
+        []
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Analyze Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5bc7bae5-903b-4cdd-a5c2-f3c3f914d0f1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1951ca550ff150273e2169c5a305bf617235f05de8adb47c8b7755307a12abf6"
+  },
+  "nodeGroups": [],
+  "id": "pepUqG20RWdZzmHl",
+  "tags": []
+}
