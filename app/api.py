@@ -186,10 +186,11 @@ def analyze_and_save_email(request: EmailAnalyzeRequest):
     }
 
 
+
 @app.post("/emails/{email_id}/generate-reply", status_code=201)
 def generate_reply(email_id: int):
 
-    # 1. Gespeicherte Kunden-E-Mail abrufen
+    # 1. Kunden-E-Mail aus der Datenbank abrufen
     email = get_email_by_id(email_id)
 
     if email is None:
@@ -198,13 +199,26 @@ def generate_reply(email_id: int):
             detail="Email not found"
         )
 
-    # 2. KI-Antwortentwurf erstellen
-    reply_text = generate_email_reply(
-    email_text=email["email_text"],
-    category=email["category"],
-    summary=email["summary"],
-    customer_name=email.get("customer_name")
-    )
+    # 2. KI-Antwortentwurf generieren
+    try:
+        reply_text = generate_email_reply(
+            email_text=email["email_text"],
+            category=email["category"],
+            summary=email["summary"],
+            customer_name=email.get("customer_name")
+        )
+
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=503,
+            detail=str(error)
+        ) from error
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=502,
+            detail=str(error)
+        ) from error
 
     # 3. Antwortentwurf in SQLite speichern
     reply_id = save_reply(

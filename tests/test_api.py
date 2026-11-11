@@ -326,3 +326,74 @@ def test_analyze_email_api_unavailable(client, monkeypatch):
     assert response.json() == {
         "detail": "OpenAI hat nicht rechtzeitig geantwortet."
     }    
+
+
+def test_generate_reply_api_unavailable(client, monkeypatch):
+    """Prüft HTTP 503 bei einem OpenAI-Ausfall."""
+
+    # Vorhandene E-Mail simulieren
+    fake_email = {
+        "id": 100,
+        "email_text": "Meine Bestellung fehlt.",
+        "category": "Versand",
+        "summary": "Bestellung nicht angekommen.",
+        "customer_name": "Max Müller"
+    }
+
+    monkeypatch.setattr(
+        "app.api.get_email_by_id",
+        lambda email_id: fake_email
+    )
+
+    # OpenAI-Ausfall simulieren
+    def fake_generate_reply(**kwargs):
+        raise RuntimeError(
+            "Verbindung zur OpenAI API fehlgeschlagen."
+        )
+
+    monkeypatch.setattr(
+        "app.api.generate_email_reply",
+        fake_generate_reply
+    )
+
+    response = client.post(
+        "/emails/100/generate-reply"
+    )
+
+    assert response.status_code == 503
+    assert "OpenAI API" in response.json()["detail"]
+
+
+def test_generate_reply_empty_response(client, monkeypatch):
+    """Prüft HTTP 502 bei einem leeren KI-Antworttext."""
+
+    fake_email = {
+        "id": 101,
+        "email_text": "Ich habe eine Frage zur Rechnung.",
+        "category": "Rechnung",
+        "summary": "Kunde fragt nach einer Rechnung.",
+        "customer_name": "Thomas Becker"
+    }
+
+    monkeypatch.setattr(
+        "app.api.get_email_by_id",
+        lambda email_id: fake_email
+    )
+
+    # Ungültige KI-Antwort simulieren
+    def fake_generate_reply(**kwargs):
+        raise ValueError(
+            "OpenAI hat keinen gültigen Antworttext geliefert."
+        )
+
+    monkeypatch.setattr(
+        "app.api.generate_email_reply",
+        fake_generate_reply
+    )
+
+    response = client.post(
+        "/emails/101/generate-reply"
+    )
+
+    assert response.status_code == 502
+    assert "keinen gültigen Antworttext" in response.json()["detail"]
