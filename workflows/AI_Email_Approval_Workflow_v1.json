@@ -1,0 +1,72 @@
+{
+  "name": "AI Email Approval Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email-approval",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d9afc242-bfcd-4194-9f4c-58edcbf9cf5a",
+      "name": "Webhook",
+      "webhookId": "19aa3894-d045-4d4f-9baf-0120ef36f16c"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'http://host.docker.internal:8000/replies/' + $json.body.reply_id + '/approval' }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "={{ $json.body.status }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "5f0a7815-07c6-43e7-bbf1-d39ed41b62cc",
+      "name": "Update Approval Status"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Update Approval Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "bdfd9fbb-6a80-43ab-aa53-9df6ab0a9f01",
+  "meta": {
+    "instanceId": "1951ca550ff150273e2169c5a305bf617235f05de8adb47c8b7755307a12abf6"
+  },
+  "nodeGroups": [],
+  "id": "PGiNjUAHtUyA4BDV",
+  "tags": []
+}

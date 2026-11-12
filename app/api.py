@@ -21,6 +21,8 @@ from app.database import update_reply_status
 from app.database import update_reply_text
 from app.database import get_replies
 from app.database import get_reply_by_id
+import sqlite3
+from app.database import get_email_by_gmail_id
 
 
 # FastAPI-Anwendung erstellen
@@ -50,6 +52,7 @@ class EmailCreate(BaseModel):
 class EmailAnalyzeRequest(BaseModel):
     email_text: str
     customer_name: str | None = None
+    gmail_message_id: str | None = None
 
 
 class ReplyUpdate(BaseModel):
@@ -147,8 +150,31 @@ def create_email(email: EmailCreate):
 @app.post("/emails/analyze", status_code=201)
 def analyze_and_save_email(request: EmailAnalyzeRequest):
 
-  
-    # 1. E-Mail mit KI analysieren
+    # 1. Gmail-ID bereinigen
+    gmail_message_id = (
+        request.gmail_message_id.strip()
+        if request.gmail_message_id
+        else None
+    )
+
+    # 2. Prüfen, ob die Gmail-Nachricht bereits existiert
+    if gmail_message_id:
+        existing_email = get_email_by_gmail_id(gmail_message_id)
+
+        if existing_email:
+            return {
+                "message": "Email already processed",
+                "email_id": existing_email["id"],
+                "category": existing_email["category"],
+                "urgency": existing_email["urgency"],
+                "summary": existing_email["summary"],
+                "priority": existing_email["priority"],
+                "department": existing_email["department"],
+                "status": existing_email["status"],
+                "already_processed": True
+            }
+
+    # 3. Neue E-Mail mit KI analysieren
     try:
         analysis = analyze_email(request.email_text)
 
@@ -158,22 +184,47 @@ def analyze_and_save_email(request: EmailAnalyzeRequest):
             detail=str(error)
         ) from error
 
-    # 2. Business Rules anwenden
+    # 4. Business Rules anwenden
     priority = assign_priority(analysis.urgency)
     department = assign_department(analysis.category)
 
-    # 3. Ergebnis in SQLite speichern
-    email_id = save_email(
-        email_text=request.email_text,
-        category=analysis.category,
-        urgency=analysis.urgency,
-        summary=analysis.summary,
-        priority=priority,
-        department=department,
-        customer_name=request.customer_name
-    )
+    # 5. Ergebnis in SQLite speichern
+    try:
+        email_id = save_email(
+            email_text=request.email_text,
+            category=analysis.category,
+            urgency=analysis.urgency,
+            summary=analysis.summary,
+            priority=priority,
+            department=department,
+            customer_name=request.customer_name,
+            gmail_message_id=gmail_message_id
+        )
 
-    # 4. Ergebnis zurückgeben
+    except sqlite3.IntegrityError:
+        # Falls zwei Anfragen dieselbe Gmail-ID gleichzeitig speichern
+        existing_email = (
+            get_email_by_gmail_id(gmail_message_id)
+            if gmail_message_id
+            else None
+        )
+
+        if existing_email:
+            return {
+                "message": "Email already processed",
+                "email_id": existing_email["id"],
+                "category": existing_email["category"],
+                "urgency": existing_email["urgency"],
+                "summary": existing_email["summary"],
+                "priority": existing_email["priority"],
+                "department": existing_email["department"],
+                "status": existing_email["status"],
+                "already_processed": True
+            }
+
+        raise
+
+    # 6. Ergebnis zurückgeben
     return {
         "message": "Email analyzed and saved successfully",
         "email_id": email_id,
@@ -182,7 +233,8 @@ def analyze_and_save_email(request: EmailAnalyzeRequest):
         "summary": analysis.summary,
         "priority": priority,
         "department": department,
-        "status": "New"
+        "status": "New",
+        "already_processed": False
     }
 
 

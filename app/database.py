@@ -9,6 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "data" / "emails.db"
 
 
+
 def create_database():
     # Datenordner erstellen, falls er nicht existiert
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -24,6 +25,7 @@ def create_database():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 email_text TEXT NOT NULL,
                 customer_name TEXT,
+                gmail_message_id TEXT UNIQUE,
                 category TEXT NOT NULL,
                 urgency TEXT NOT NULL,
                 summary TEXT NOT NULL,
@@ -55,19 +57,36 @@ def create_database():
                     REFERENCES emails(id)
             )
         """)
-                # Bestehende Datenbank um den Kundennamen erweitern
+
+        # Spalten der bestehenden Tabelle prüfen
         cursor.execute("PRAGMA table_info(emails)")
         columns = [row[1] for row in cursor.fetchall()]
 
+        # Kundennamen ergänzen, falls die Spalte fehlt
         if "customer_name" not in columns:
             cursor.execute("""
                 ALTER TABLE emails
                 ADD COLUMN customer_name TEXT
             """)
 
+        # Gmail-Nachrichten-ID ergänzen, falls die Spalte fehlt
+        if "gmail_message_id" not in columns:
+            cursor.execute("""
+                ALTER TABLE emails
+                ADD COLUMN gmail_message_id TEXT
+            """)
+
+        # Doppelte Gmail-Nachrichten verhindern
+        cursor.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS
+            idx_emails_gmail_message_id
+            ON emails(gmail_message_id)
+        """)
+
         conn.commit()
 
     print(f"Database created successfully: {DB_PATH}")
+
 
 
 def save_email(
@@ -77,13 +96,16 @@ def save_email(
     summary: str,
     priority: str,
     department: str,
-    customer_name: str | None = None
+    customer_name: str | None = None,
+    gmail_message_id: str | None = None
 ) -> int:
-    """Speichert eine analysierte E-Mail in der SQLite-Datenbank."""
+    """Speichert eine analysierte E-Mail in SQLite."""
 
-    # Kundennamen bereinigen
-    # Entfernt Leerzeichen und Zeilenumbrüche am Anfang und Ende
+    # Kundennamen und Gmail-ID bereinigen
     customer_name = customer_name.strip() if customer_name else None
+    gmail_message_id = (
+        gmail_message_id.strip() if gmail_message_id else None
+    )
 
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
@@ -92,16 +114,18 @@ def save_email(
             INSERT INTO emails (
                 email_text,
                 customer_name,
+                gmail_message_id,
                 category,
                 urgency,
                 summary,
                 priority,
                 department
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             email_text,
             customer_name,
+            gmail_message_id,
             category,
             urgency,
             summary,
@@ -114,6 +138,32 @@ def save_email(
         return cursor.lastrowid
 
 
+def get_email_by_gmail_id(gmail_message_id: str) -> dict | None:
+    """Sucht eine bereits gespeicherte E-Mail anhand ihrer Gmail-ID."""
+
+    if not gmail_message_id or not gmail_message_id.strip():
+        return None
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+
+        cursor = conn.execute("""
+            SELECT
+                id,
+                gmail_message_id,
+                category,
+                urgency,
+                summary,
+                priority,
+                department,
+                status
+            FROM emails
+            WHERE gmail_message_id = ?
+        """, (gmail_message_id.strip(),))
+
+        row = cursor.fetchone()
+
+        return dict(row) if row else None
 
 
 
