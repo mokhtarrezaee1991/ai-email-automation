@@ -418,6 +418,50 @@ except requests.exceptions.RequestException as error:
         f"KI-Antworten konnten nicht geladen werden: {error}"
     )
 
+# ---------------------------------------
+# 6. Bearbeitete Antworten
+# ---------------------------------------
+
+st.divider()
+st.subheader("Bearbeitete Antworten")
+
+if "replies" in locals():
+
+    processed_replies = [
+        reply
+        for reply in replies
+        if reply.get("approval_status") in [
+            "Approved",
+            "Rejected"
+        ]
+    ]
+
+    st.write(
+        f"Bearbeitete Antworten: {len(processed_replies)}"
+    )
+
+    if processed_replies:
+
+        table_data = [
+            {
+                "E-Mail-ID": reply["email_id"],
+                "Antwort-ID": reply["id"],
+                "Freigabestatus": reply["approval_status"]
+            }
+            for reply in processed_replies
+        ]
+
+        st.dataframe(
+            table_data,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+        st.info("Noch keine bearbeiteten Antworten vorhanden.")
+
+else:
+    st.warning("Antwortdaten konnten nicht geladen werden.")
 
 # ---------------------------------------
 # 6. API-Verbindung
